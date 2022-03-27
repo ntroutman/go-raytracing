@@ -3,6 +3,7 @@ package vec
 import (
 	"fmt"
 	"math"
+	"raytracing/rnd"
 )
 
 type Color = Vec3
@@ -14,25 +15,29 @@ type Vec3 struct {
 	Z float64
 }
 
+func Random() Vec3 {
+	return Vec3{rnd.Float64(), rnd.Float64(), rnd.Float64()}
+}
+
+func RandomRange(min, max float64) Vec3 {
+	return Vec3{rnd.Float64Range(min, max), rnd.Float64Range(min, max), rnd.Float64Range(min, max)}
+}
+
+func RandomUnitSphere() Vec3 {
+	for {
+		p := RandomRange(-1, 1)
+		if p.LengthSquared() >= 1 {
+			continue
+		}
+		//fmt.Printf("p: %v, len: %f\n", p, p.LengthSquared())
+
+		return p
+	}
+}
+
 func (v *Vec3) String() string {
 	return fmt.Sprintf("V<%s, %s, %s>", v.X, v.Y, v.Z)
 }
-
-// func New(x, y, z float32) Vec3 {
-// 	return Vec3{[3]float32{x, y, z}}
-// }
-
-// func (v *Vec3) x() float32 {
-// 	return v.e[0]
-// }
-
-// func (v *Vec3) y() float32 {
-// 	return v.e[1]
-// }
-
-// func (v *Vec3) z() float32 {
-// 	return v.e[1]
-// }
 
 func (v Vec3) Scale(s float64) Vec3 {
 	return Vec3{v.X * s, v.Y * s, v.Z * s}

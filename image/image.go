@@ -7,8 +7,8 @@ import (
 )
 
 type Image struct {
-	width  int
-	height int
+	Width  int
+	Height int
 	pixels []byte
 }
 
@@ -21,8 +21,8 @@ func Gradient(width, height int) Image {
 
 	fwidth := float32(width - 1)
 	fheight := float32(height - 1)
-	for y := 0; y < img.height; y++ {
-		for x := 0; x < img.width; x++ {
+	for y := 0; y < img.Height; y++ {
+		for x := 0; x < img.Width; x++ {
 			r := float32(x) / fwidth
 			g := float32(y) / fheight
 			b := float32(0.25)
@@ -36,9 +36,9 @@ func Gradient(width, height int) Image {
 
 func (img *Image) SetPixelRGB(x, y int, r, g, b float32) {
 	idx := img.Index(x, y)
-	img.pixels[idx+2] = byte(255 * r)
-	img.pixels[idx+1] = byte(255 * g)
-	img.pixels[idx+0] = byte(255 * b)
+	img.pixels[idx+2] = byte(256 * r)
+	img.pixels[idx+1] = byte(256 * g)
+	img.pixels[idx+0] = byte(256 * b)
 }
 
 func (img *Image) SetPixel(x, y int, color vec.Color) {
@@ -46,7 +46,7 @@ func (img *Image) SetPixel(x, y int, color vec.Color) {
 }
 
 func (img *Image) Index(x, y int) int {
-	return 3 * (y*img.width + x)
+	return 3 * (y*img.Width + x)
 }
 
 func (img *Image) WriteTarga(filename string) {
@@ -72,9 +72,9 @@ func (img *Image) WriteTarga(filename string) {
 		// - 2 bytes    Y origin
 		0, 0,
 		// - 2 bytes    Width
-		(byte)(img.width & 255), (byte)((img.width >> 8) & 255),
+		(byte)(img.Width & 255), (byte)((img.Width >> 8) & 255),
 		// - 2 bytes    Width
-		(byte)(img.height & 255), (byte)((img.height >> 8) & 255),
+		(byte)(img.Height & 255), (byte)((img.Height >> 8) & 255),
 		// - 1 byte     Pixel Depth (bits per Pixel)
 		24,
 		// - 1 byte     Image Descriptor

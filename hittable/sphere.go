@@ -25,14 +25,19 @@ func (s *Sphere) Hit(r *ray.Ray, tMin, tMax float64) (Hit *HitRecord, IsHit bool
 
 	// Find the nearest root that lies in the acceptable range.
 	var root = (-half_b - sqrtd) / a
-	if root < tMin || root > tMax {
+	//if root < tMin || root > tMax {
+	if root < tMin || tMax < root {
 		root = (-half_b + sqrtd) / a
-		if root < tMin || root > tMax {
+		//if root < tMin || root > tMax {
+		if root < tMin || tMax < root {
+			// fmt.Printf("root: %v\n", root)
 			return nil, false
 		}
 	}
 
 	t := root
-	n := r.At(t).Sub(s.Center).Norm()
+	//n := r.At(t).Sub(s.Center).Norm()
+	p := r.At(t)
+	n := p.Sub(s.Center).Scale(1.0 / s.Radius)
 	return createHit(r, t, n), true
 }
