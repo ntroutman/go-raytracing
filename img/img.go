@@ -9,7 +9,7 @@ import (
 type Image struct {
 	Width  int
 	Height int
-	pixels []byte
+	Pixels []byte
 }
 
 func New(width, height int) Image {
@@ -36,9 +36,9 @@ func Gradient(width, height int) Image {
 
 func (img *Image) SetPixelRGB(x, y int, r, g, b float32) {
 	idx := img.Index(x, y)
-	img.pixels[idx+2] = byte(256 * r)
-	img.pixels[idx+1] = byte(256 * g)
-	img.pixels[idx+0] = byte(256 * b)
+	img.Pixels[idx+2] = byte(256 * r)
+	img.Pixels[idx+1] = byte(256 * g)
+	img.Pixels[idx+0] = byte(256 * b)
 }
 
 func (img *Image) SetPixel(x, y int, color vec.Color) {
@@ -85,5 +85,5 @@ func (img *Image) WriteTarga(filename string) {
 	// 6 	From image ID length field 	Image ID 	Optional field containing identifying information
 	// 7 	From color map specification field 	Color map data 	Look-up table containing color map data
 	// 8 	From image specification field 	Image data 	Stored according to the image descriptor
-	file.Write(img.pixels)
+	file.Write(img.Pixels)
 }

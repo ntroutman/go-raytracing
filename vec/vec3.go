@@ -23,7 +23,7 @@ func RandomRange(min, max float64) Vec3 {
 	return Vec3{rnd.Float64Range(min, max), rnd.Float64Range(min, max), rnd.Float64Range(min, max)}
 }
 
-func RandomUnitSphere() Vec3 {
+func RandomInUnitSphere() Vec3 {
 	for {
 		p := RandomRange(-1, 1)
 		if p.LengthSquared() >= 1 {
@@ -33,6 +33,18 @@ func RandomUnitSphere() Vec3 {
 
 		return p
 	}
+}
+
+func RandomUnitVector() Vec3 {
+	return RandomInUnitSphere().Norm()
+}
+
+func RandomInHemiSphere(normal Vec3) Vec3 {
+	dir := RandomInUnitSphere()
+	if Dot(normal, dir) < 0 {
+		dir = dir.Neg()
+	}
+	return dir
 }
 
 func (v *Vec3) String() string {

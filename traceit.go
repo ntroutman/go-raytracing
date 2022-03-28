@@ -32,7 +32,7 @@ func main() {
 	renderer.world = objects
 
 	// Render
-	renderer.RenderMultiThread()
+	renderer.RenderSingleThread()
 
 }
 
@@ -64,7 +64,9 @@ func (r *Renderer) RenderMultiThread() {
 		line := <-lineChannel
 		fmt.Println("Lines Remaining:", y)
 		for x := 0; x < r.img.Width; x++ {
-			r.img.SetPixel(x, line.y, line.pixels[x])
+			//r.img.SetPixel(x, line.y, line.pixels[x])
+			copy(r.img.Pixels[y*3:(y+1)*3], line.pixels)
+
 		}
 	}
 
@@ -74,16 +76,19 @@ func (r *Renderer) RenderMultiThread() {
 func (r *Renderer) renderLine(y int, lineChannel chan *renderedLine) {
 	out := new(renderedLine)
 	out.y = y
-	out.pixels = make([]vec.Color, r.img.Width)
+	out.pixels = make([]byte, r.img.Width*3)
 	for x := 0; x < r.img.Width; x++ {
-		out.pixels[x] = r.renderPixel(x, y)
+		pixelColor := r.renderPixel(x, y)
+		out.pixels[x*3+2] = byte(256 * pixelColor.X)
+		out.pixels[x*3+1] = byte(256 * pixelColor.Y)
+		out.pixels[x*3+0] = byte(256 * pixelColor.Z)
 	}
 	lineChannel <- out
 }
 
 type renderedLine struct {
 	y      int
-	pixels []vec.Color
+	pixels []byte
 }
 
 func (r *Renderer) renderPixel(x, y int) vec.Color {
@@ -114,11 +119,12 @@ func calcRayColor(r *ray.Ray, world hittable.Hittable, bouncesLeft int) vec.Colo
 		} else {
 			// // target := hit.P.Add(hit.Normal).Add(vec.RandomUnitSphere())
 			// // dir := target.Sub(hit.P)
-			dir := vec.RandomUnitSphere()
-			if vec.Dot(hit.Normal, dir) < 0 {
-				dir = dir.Neg()
-			}
-			return calcRayColor(&ray.Ray{hit.P, dir}, world, bouncesLeft-1).Scale(0.5)
+
+			target := hit.P.Add(vec.RandomInHemiSphere(hit.Normal))
+			return calcRayColor(&ray.Ray{hit.P, target.Sub(hit.P)}, world, bouncesLeft-1).Scale(.5)
+
+			// dir := vec.RandomUnitVector()
+			// return calcRayColor(&ray.Ray{hit.P, dir}, world, bouncesLeft-1).Scale(0.5)
 			// // return vec.Color{1.0, 1.0, 1.0}.Add(dir).Scale(0.5)
 		}
 	}
