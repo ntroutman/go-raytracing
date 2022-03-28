@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"raytracing/camera"
 	"raytracing/hittable"
+	"raytracing/img"
 	"raytracing/ray"
 	"raytracing/rnd"
 	"raytracing/vec"
@@ -13,49 +14,95 @@ import (
 
 const SHOW_NORMALS = false
 
-const SAMPLES_PER_PIXEL = 50
-const MAX_BOUNCES = 25
+const SAMPLES_PER_PIXEL = 100
+const MAX_BOUNCES = 50
 
 func main() {
 	rnd.Init()
 	// img := image.Gradient(1280, 720)
 	// img.WriteTarga("gradient.tga")
 
-	// Camera
-	cam := camera.Create()
-
-	// Image
-	img := cam.CreateImage(400)
+	var renderer Renderer
+	renderer.cam = camera.Create()
+	renderer.img = renderer.cam.CreateImage(400)
 
 	var objects = new(hittable.HittableList)
 	objects.Add(&hittable.Sphere{Center: vec.Point3{0.0, 0.0, -1.0}, Radius: 0.5})
 	objects.Add(&hittable.Sphere{Center: vec.Point3{0.0, -100.5, -1.0}, Radius: 100.})
+	renderer.world = objects
 
 	// Render
+	renderer.RenderMultiThread()
 
-	for j := img.Height - 1; j >= 0; j-- {
-		fmt.Println("Lines Remaining:", j)
-		for i := 0; i < img.Width; i++ {
-			// u := float64(i) / float64(img.Width-1)
-			// v := float64(j) / float64(img.Height-1)
-			// r := cam.GetRay(u, v)
-			pixelColor := vec.Color{0.0, 0.0, 0.0}
-			for s := 0; s < SAMPLES_PER_PIXEL; s++ {
-				u := (float64(i) + rand.Float64()) / float64(img.Width-1)
-				v := (float64(j) + rand.Float64()) / float64(img.Height-1)
-				r := cam.GetRay(u, v)
-				sampleContribution := ray_color(&r, objects, MAX_BOUNCES)
-				pixelColor = pixelColor.Add(sampleContribution)
-			}
+}
 
-			img.SetPixel(i, j, colorCorrect(pixelColor, SAMPLES_PER_PIXEL))
+type Renderer struct {
+	cam   *camera.Camera
+	img   *img.Image
+	world *hittable.HittableList
+}
+
+func (r *Renderer) RenderSingleThread() {
+	for y := r.img.Height - 1; y >= 0; y-- {
+		fmt.Println("Lines Remaining:", y)
+		for x := 0; x < r.img.Width; x++ {
+			color := r.renderPixel(x, y)
+			r.img.SetPixel(x, y, color)
 		}
 	}
 
-	img.WriteTarga("output.tga")
+	r.img.WriteTarga("output.tga")
 }
 
-func ray_color(r *ray.Ray, world hittable.Hittable, bouncesLeft int) vec.Color {
+func (r *Renderer) RenderMultiThread() {
+	lineChannel := make(chan *renderedLine, 50)
+	for y := r.img.Height - 1; y >= 0; y-- {
+		go r.renderLine(y, lineChannel)
+	}
+
+	for y := r.img.Height - 1; y >= 0; y-- {
+		line := <-lineChannel
+		fmt.Println("Lines Remaining:", y)
+		for x := 0; x < r.img.Width; x++ {
+			r.img.SetPixel(x, line.y, line.pixels[x])
+		}
+	}
+
+	r.img.WriteTarga("output.tga")
+}
+
+func (r *Renderer) renderLine(y int, lineChannel chan *renderedLine) {
+	out := new(renderedLine)
+	out.y = y
+	out.pixels = make([]vec.Color, r.img.Width)
+	for x := 0; x < r.img.Width; x++ {
+		out.pixels[x] = r.renderPixel(x, y)
+	}
+	lineChannel <- out
+}
+
+type renderedLine struct {
+	y      int
+	pixels []vec.Color
+}
+
+func (r *Renderer) renderPixel(x, y int) vec.Color {
+	// u := float64(i) / float64(img.Width-1)
+	// v := float64(j) / float64(img.Height-1)
+	// r := cam.GetRay(u, v)
+	pixelColor := vec.Color{0.0, 0.0, 0.0}
+	for s := 0; s < SAMPLES_PER_PIXEL; s++ {
+		u := (float64(x) + rand.Float64()) / float64(r.img.Width-1)
+		v := (float64(y) + rand.Float64()) / float64(r.img.Height-1)
+		ray := r.cam.GetRay(u, v)
+		sampleContribution := calcRayColor(&ray, r.world, MAX_BOUNCES)
+		pixelColor = pixelColor.Add(sampleContribution)
+	}
+
+	return colorCorrect(pixelColor, SAMPLES_PER_PIXEL)
+}
+
+func calcRayColor(r *ray.Ray, world hittable.Hittable, bouncesLeft int) vec.Color {
 	if bouncesLeft <= 0 {
 		return vec.Color{0, 0, 0}
 	}
@@ -71,7 +118,7 @@ func ray_color(r *ray.Ray, world hittable.Hittable, bouncesLeft int) vec.Color {
 			if vec.Dot(hit.Normal, dir) < 0 {
 				dir = dir.Neg()
 			}
-			return ray_color(&ray.Ray{hit.P, dir}, world, bouncesLeft-1).Scale(0.5)
+			return calcRayColor(&ray.Ray{hit.P, dir}, world, bouncesLeft-1).Scale(0.5)
 			// // return vec.Color{1.0, 1.0, 1.0}.Add(dir).Scale(0.5)
 		}
 	}

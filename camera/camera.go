@@ -1,7 +1,7 @@
 package camera
 
 import (
-	"raytracing/image"
+	"raytracing/img"
 	"raytracing/ray"
 	"raytracing/vec"
 )
@@ -41,8 +41,8 @@ func (camera *Camera) GetRay(u, v float64) ray.Ray {
 	}
 }
 
-func (camera *Camera) CreateImage(imageWidth int) *image.Image {
+func (camera *Camera) CreateImage(imageWidth int) *img.Image {
 	imageHeight := int(float64(imageWidth) / camera.aspectRatio)
-	img := image.New(imageWidth, imageHeight)
+	img := img.New(imageWidth, imageHeight)
 	return &img
 }
