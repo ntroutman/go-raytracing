@@ -63,6 +63,14 @@ func (v Vec3) Sub(w Vec3) Vec3 {
 	return Vec3{v.X - w.X, v.Y - w.Y, v.Z - w.Z}
 }
 
+func (v Vec3) Mul(w Vec3) Vec3 {
+	return Vec3{v.X * w.X, v.Y * w.Y, v.Z * w.Z}
+}
+
+func (v Vec3) Div(w Vec3) Vec3 {
+	return Vec3{v.X / w.X, v.Y / w.Y, v.Z / w.Z}
+}
+
 func (v Vec3) LengthSquared() float64 {
 	//return v.e[0]*v.e[0] + v.e[1]*v.e[1] + v.e[2]*v.e[2]
 	return v.X*v.X + v.Y*v.Y + v.Z*v.Z
@@ -79,6 +87,16 @@ func (v Vec3) Neg() Vec3 {
 func (v Vec3) Norm() Vec3 {
 	mag := v.Length()
 	return Vec3{v.X / mag, v.Y / mag, v.Z / mag}
+}
+
+func (v Vec3) NearZero() bool {
+	const s = 1e-8
+	return (math.Abs(v.X) < s) && (math.Abs(v.Y) < s) && (math.Abs(v.Z) < s)
+}
+
+func Reflect(vec, normal Vec3) Vec3 {
+	//     return v - 2*dot(v,n)*n;
+	return vec.Sub(normal.Scale(2 * Dot(vec, normal)))
 }
 
 func Dot(a Vec3, b Vec3) float64 {

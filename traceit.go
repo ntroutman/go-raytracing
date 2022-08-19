@@ -7,6 +7,7 @@ import (
 	"raytracing/camera"
 	"raytracing/hittable"
 	"raytracing/img"
+	"raytracing/mat"
 	"raytracing/ray"
 	"raytracing/rnd"
 	"raytracing/vec"
@@ -24,16 +25,25 @@ func main() {
 
 	var renderer Renderer
 	renderer.cam = camera.Create()
-	renderer.img = renderer.cam.CreateImage(400)
+	renderer.img = renderer.cam.CreateImage(100)
 
 	var objects = new(hittable.HittableList)
-	objects.Add(&hittable.Sphere{Center: vec.Point3{0.0, 0.0, -1.0}, Radius: 0.5})
-	objects.Add(&hittable.Sphere{Center: vec.Point3{0.0, -100.5, -1.0}, Radius: 100.})
+
+	materialGround := &mat.Lambertian{vec.Color{0.8, 0.8, 0.0}}
+	materialCenter := &mat.Lambertian{vec.Color{0.7, 0.3, 0.3}}
+	materialLeft := &mat.Metal{vec.Color{0.8, 0.8, 0.8}, 0.3}
+	materialRight := &mat.Metal{vec.Color{0.8, 0.6, 0.2}, 1.0}
+
+	objects.Add(&hittable.Sphere{Center: vec.Point3{0.0, -100.5, -1.0}, Radius: 100., Mat: materialGround})
+	objects.Add(&hittable.Sphere{Center: vec.Point3{0.0, 0.0, -1.0}, Radius: 0.5, Mat: materialCenter})
+	objects.Add(&hittable.Sphere{Center: vec.Point3{-1.0, 0.0, -1.0}, Radius: 0.5, Mat: materialLeft})
+	objects.Add(&hittable.Sphere{Center: vec.Point3{1.0, 0.0, -1.0}, Radius: 0.5, Mat: materialRight})
+
 	renderer.world = objects
 
 	// Render
-	renderer.RenderSingleThread()
-
+	//renderer.RenderSingleThread()
+	renderer.RenderMultiThreadYBatch()
 }
 
 type Renderer struct {
@@ -55,25 +65,21 @@ func (r *Renderer) RenderSingleThread() {
 }
 
 func (r *Renderer) RenderMultiThread() {
-	lineChannel := make(chan *renderedLine, 50)
+	lineChannel := make(chan *renderedLine, 500)
 	for y := r.img.Height - 1; y >= 0; y-- {
-		go r.renderLine(y, lineChannel)
+		go r.renderSingleLine(y, lineChannel)
 	}
 
 	for y := r.img.Height - 1; y >= 0; y-- {
 		line := <-lineChannel
 		fmt.Println("Lines Remaining:", y)
-		for x := 0; x < r.img.Width; x++ {
-			//r.img.SetPixel(x, line.y, line.pixels[x])
-			copy(r.img.Pixels[y*3:(y+1)*3], line.pixels)
-
-		}
+		copy(r.img.Pixels[y*3:(y+1)*3], line.pixels)
 	}
 
 	r.img.WriteTarga("output.tga")
 }
 
-func (r *Renderer) renderLine(y int, lineChannel chan *renderedLine) {
+func (r *Renderer) renderSingleLine(y int, lineChannel chan *renderedLine) {
 	out := new(renderedLine)
 	out.y = y
 	out.pixels = make([]byte, r.img.Width*3)
@@ -89,6 +95,50 @@ func (r *Renderer) renderLine(y int, lineChannel chan *renderedLine) {
 type renderedLine struct {
 	y      int
 	pixels []byte
+}
+
+func (r *Renderer) RenderMultiThreadYBatch() {
+	lineChannel := make(chan *renderedLine, 500)
+	const BATCH_SIZE = 25
+	for y := r.img.Height - 1; y >= 0; y -= BATCH_SIZE {
+		yEnd := y - BATCH_SIZE
+		if yEnd < 0 {
+			yEnd = 0
+		}
+		fmt.Println("Batch:", y, yEnd)
+		go r.renderLineBatch(y, yEnd, lineChannel)
+	}
+
+	for y := r.img.Height - 1; y >= 0; y -= BATCH_SIZE {
+		line := <-lineChannel
+		fmt.Println("Lines Remaining:", y)
+		copy(r.img.Pixels[y*3:(y+BATCH_SIZE)*3], line.pixels)
+	}
+
+	r.img.WriteTarga("output.tga")
+}
+
+func (r *Renderer) renderLineBatch(yStart, yEnd int, lineChannel chan *renderedLine) {
+	width := r.img.Width
+
+	out := new(renderedLine)
+	out.y = yStart
+	out.pixels = make([]byte, width*3*(yStart-yEnd+1))
+	idx := 0
+	for y := yStart; y >= yEnd; y-- {
+		fmt.Println("Line:", y, yStart, yEnd)
+		for x := 0; x < width; x++ {
+			pixelColor := r.renderPixel(x, y)
+
+			out.pixels[idx] = byte(256 * pixelColor.Z)
+			idx += 1
+			out.pixels[idx] = byte(256 * pixelColor.X)
+			idx += 1
+			out.pixels[idx] = byte(256 * pixelColor.Y)
+			idx += 1
+		}
+	}
+	lineChannel <- out
 }
 
 func (r *Renderer) renderPixel(x, y int) vec.Color {
@@ -117,15 +167,14 @@ func calcRayColor(r *ray.Ray, world hittable.Hittable, bouncesLeft int) vec.Colo
 		if SHOW_NORMALS {
 			return vec.Color{hit.Normal.X + 1, hit.Normal.Y + 1, hit.Normal.Z + 1}.Scale(0.5)
 		} else {
-			// // target := hit.P.Add(hit.Normal).Add(vec.RandomUnitSphere())
-			// // dir := target.Sub(hit.P)
-
-			target := hit.P.Add(vec.RandomInHemiSphere(hit.Normal))
-			return calcRayColor(&ray.Ray{hit.P, target.Sub(hit.P)}, world, bouncesLeft-1).Scale(.5)
-
-			// dir := vec.RandomUnitVector()
-			// return calcRayColor(&ray.Ray{hit.P, dir}, world, bouncesLeft-1).Scale(0.5)
-			// // return vec.Color{1.0, 1.0, 1.0}.Add(dir).Scale(0.5)
+			// target := hit.P.Add(vec.RandomInHemiSphere(hit.Normal))
+			// return calcRayColor(&ray.Ray{hit.P, target.Sub(hit.P)}, world, bouncesLeft-1).Scale(.5)
+			scatter, didScatter := hit.Scatter(r)
+			if didScatter {
+				return calcRayColor(&scatter.Scattered, world, bouncesLeft-1).Mul(scatter.Attenuation)
+			} else {
+				return vec.Color{0, 0, 0}
+			}
 		}
 	}
 
